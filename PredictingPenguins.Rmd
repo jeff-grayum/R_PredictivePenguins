@@ -1,0 +1,82 @@
+---
+title: "PredictivePenguins"
+author: "Jeff Grayum"
+date: "2/14/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading libraries.
+```{r}
+library(tidyverse)
+library(silgelib)
+library(scales)
+theme_set(theme_hc())
+#install.packages("palmerpenguins")
+library(palmerpenguins)
+library(tidymodels)
+```
+
+Some quick exploratory analysis.
+```{r}
+penguins %>% 
+  view() 
+
+penguins %>%
+  count(island, species)  
+
+penguins %>%
+  count(sex)
+
+penguins %>%
+  count(year)
+
+penguins %>%
+  filter(!is.na(sex)) %>%
+  ggplot(aes(flipper_length_mm, bill_length_mm, color = sex, size = body_mass_g)) +
+  geom_point(alpha = 0.7) +
+  labs(x = "Flipper length (mm)",
+       y = "Bill length (mm)",
+       color = "Sex",
+       size = "Body mass (grams)") +
+  facet_wrap(~ species)
+```
+
+Let's build a model that can tell difference between male and female penguins.
+```{r}
+penguins_df <- penguins %>%
+  filter(!is.na(sex)) %>%
+  select(-year, -island)
+
+set.seed(123)
+
+#Split, train, test!
+penguin_split <- initial_split(penguins_df, strata = sex)
+penguin_train <- training(penguin_split)
+penguin_test <- testing(penguin_split)
+
+#We have a small dataset...  We'll create a resampled dataset via our training set to compute performance (bootstrapping of training data (resamples with replacement)!)  
+set.seed(234)
+penguin_boot <- bootstraps(penguin_train)
+penguin_boot
+```
+
+Now lets make some models! We'll build two model specifications (glm and random forest)
+```{r}
+#We'll start with a basic logistic regression model.
+
+glm_spec <- logistic_reg() %>%
+  set_engine("glm")
+
+#Let's also set up a random forest model. Set mode for classification and not regression.
+rf_spec <- rand_forest() %>% 
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+```
+
