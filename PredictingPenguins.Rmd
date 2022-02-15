@@ -80,3 +80,70 @@ rf_spec <- rand_forest() %>%
 
 ```
 
+We're going to use the dreaded workflow.  We need to add pre-processors to our models.
+```{r}
+penguin_wf <- workflow() %>%
+  add_formula(sex ~ .)
+
+glm_rs <- penguin_wf %>%
+  add_model(glm_spec) %>%
+  fit_resamples(
+    resamples = penguin_boot,
+    control = control_resamples(save_pred = TRUE, verbose = TRUE)
+  )
+
+rf_rs <- penguin_wf %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = penguin_boot,
+    control = control_resamples(save_pred = TRUE, verbose = TRUE)
+  )
+```
+
+Evaluate modeling
+```{r}
+collect_metrics(rf_rs)
+collect_metrics(glm_rs) #slightly better!
+```
+
+#We saved our predictions.  Let's look at a confusion matrix!
+```{r}
+glm_rs %>%
+  conf_mat_resampled()
+```
+
+Let's make some roc curves.
+```{r}
+#Dashed line is how our model would do randomly...further away our lines, the better.
+glm_rs %>%
+  collect_predictions() %>%
+  group_by(id) %>%
+  roc_curve(sex, .pred_female) %>%
+  ggplot(aes(1 - specificity, sensitivity, color = id)) +
+  geom_abline(lty = 2, color = "gray80", size = 1.5) +
+  geom_path(show.legend = FALSE, alpha = 0.6, size = 1.2) +
+  coord_equal() +
+  labs(y = "Sensitivity")
+```
+
+Now it's time to come back to the testing data! Estimates performance on new data..
+```{r}
+penguin_final <- penguin_wf %>%
+  add_model(glm_spec) %>%
+  last_fit(penguin_split)
+
+penguin_final
+
+collect_metrics(penguin_final) #These are on the testing data (they're good!)
+
+collect_predictions(penguin_final) %>%
+  conf_mat(sex, .pred_class)
+```
+
+Lets extract the fitted workflow and tidy!
+```{r}
+penguin_final$.workflow[[1]] %>%
+  tidy(exponentiate = TRUE) %>%
+  arrange(estimate)
+```
+
